@@ -74,6 +74,39 @@ void OptionsDialog::load()
     checkboxExplorerSign->setChecked(app->settings->getExplorerSignIntegration());
 #endif
 
+    // Interface
+
+    checkboxDarkMode->setChecked(app->settings->getDarkMode());
+    checkboxTray->setChecked(app->settings->getTrayIcon());
+    checkboxTrayClose->setChecked(app->settings->getTrayClose());
+    checkboxTrayMinimize->setChecked(app->settings->getTrayMinimize());
+    checkboxTrayStart->setChecked(app->settings->getTrayStart());
+    groupTray->setChecked(app->settings->getTrayEnabled());
+    checkboxTaskbar->setChecked(app->settings->getTaskbarProgress());
+    checkboxTaskbarStart->setChecked(app->settings->getTaskbarStart());
+    checkboxTaskbarFinish->setChecked(app->settings->getTaskbarFinish());
+    checkboxTaskbarErrors->setChecked(app->settings->getTaskbarErrors());
+    checkboxTaskbarWarnings->setChecked(app->settings->getTaskbarWarnings());
+    groupTaskbar->setChecked(app->settings->getTaskbarEnabled());
+    checkboxNotifications->setChecked(app->settings->getNotifications());
+    checkboxNotificationsStart->setChecked(app->settings->getNotificationsStart());
+    checkboxNotificationsFinish->setChecked(app->settings->getNotificationsFinish());
+    checkboxNotificationsErrors->setChecked(app->settings->getNotificationsErrors());
+    checkboxNotificationsWarnings->setChecked(app->settings->getNotificationsWarnings());
+    groupNotifications->setChecked(app->settings->getNotificationsEnabled());
+
+    // Tools
+
+    editAdb->setText(app->settings->getAdbPath());
+    editApktool->setText(app->settings->getApktoolPath());
+    editApksigner->setText(app->settings->getApksignerPath());
+    editZipalign->setText(app->settings->getZipalignPath());
+
+    // Devices
+
+    deviceManager->load();
+}
+
     // Appearance
 
     comboLanguages->clear();
@@ -330,6 +363,51 @@ void OptionsDialog::initialize()
     pageApktool->addWidget(groupUnpacking, 1, 0);
     pageApktool->addWidget(groupPacking, 1, 1);
 
+    // Signing
+
+    auto pageSigning = new QFormLayout;
+    fileboxKeyStore = new FileBox(true, this);
+    fileboxKeyStore->setDefaultPath("");
+    fileboxKeyStore->setPlaceholderText(Signer::getDefaultKeyStorePath());
+    lineEditAlias = new QLineEdit(this);
+    lineEditAlias->setPlaceholderText(Signer::getDefaultAlias());
+    lineEditAlias->setClearButtonEnabled(true);
+    lineEditPassword = new QLineEdit(this);
+    lineEditPassword->setPlaceholderText(Signer::getDefaultKeyStorePassword());
+    lineEditPassword->setEchoMode(QLineEdit::Password);
+    lineEditPassword->setClearButtonEnabled(true);
+    lineEditKeyPassword = new QLineEdit(this);
+    lineEditKeyPassword->setPlaceholderText(Signer::getDefaultKeyPassword());
+    lineEditKeyPassword->setEchoMode(QLineEdit::Password);
+    lineEditKeyPassword->setClearButtonEnabled(true);
+    pageSigning->addRow(tr("Key store path:"), fileboxKeyStore);
+    pageSigning->addRow(tr("Alias:"), lineEditAlias);
+    pageSigning->addRow(tr("Key store password:"), lineEditPassword);
+    pageSigning->addRow(tr("Key password:"), lineEditKeyPassword);
+
+    // Main
+
+    auto layout = new QVBoxLayout(this);
+    auto tabs = new QTabWidget(this);
+    tabs->addTab(pageGeneral, tr("General"));
+    tabs->addTab(pageAppearance, tr("Appearance"));
+    tabs->addTab(pageJava, tr("Java"));
+    tabs->addTab(pageApktool, tr("Apktool"));
+    tabs->addTab(pageSigning, tr("Signing"));
+    layout->addWidget(tabs);
+
+    auto buttons = new QDialogButtonBox(this);
+    buttons->setStandardButtons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    connect(buttons, &QDialogButtonBox::accepted, this, &SettingsDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, this, &SettingsDialog::reject);
+    layout->addWidget(buttons);
+
+    installEventFilter(this);
+
+    retranslate();
+    loadSettings();
+}
+
     // Apksigner
 
     auto pageApksigner = new QFormLayout;
@@ -350,6 +428,7 @@ void OptionsDialog::initialize()
     pageApksigner->addRow(tr("Apksigner path:"), fileboxApksigner);
     pageApksigner->addRow(btnKeyManager);
     pageApksigner->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+
 
     // Zipalign
 
@@ -381,6 +460,31 @@ void OptionsDialog::initialize()
     pageAdb->addRow(tr("ADB path:"), fileboxAdb);
     pageAdb->addRow(btnDeviceManager);
     pageAdb->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+
+    // Main
+
+    auto layout = new QVBoxLayout(this);
+    auto tabs = new QTabWidget(this);
+    tabs->addTab(pageGeneral, tr("General"));
+    tabs->addTab(pageAppearance, tr("Appearance"));
+    tabs->addTab(pageJava, tr("Java"));
+    tabs->addTab(pageApktool, tr("Apktool"));
+    tabs->addTab(pageApksigner, tr("Apksigner"));
+    tabs->addTab(pageZipalign, tr("Zipalign"));
+    tabs->addTab(pageAdb, tr("ADB"));
+    layout->addWidget(tabs);
+
+    auto buttons = new QDialogButtonBox(this);
+    buttons->setStandardButtons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    connect(buttons, &QDialogButtonBox::accepted, this, &SettingsDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, this, &SettingsDialog::reject);
+    layout->addWidget(buttons);
+
+    installEventFilter(this);
+
+    retranslate();
+    loadSettings();
+}
 
     // Initialize
 
