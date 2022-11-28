@@ -141,6 +141,34 @@ void MainWindow::installExternalApk()
     }
 }
 
+void MainWindow::openExternalProject()
+{
+    const QStringList paths = Dialogs::getOpenProjectFilenames(this);
+    for (const QString &path : paths) {
+        openProject(path);
+    }
+}
+
+
+void MainWindow::openProject(const QString &path)
+{
+    if (auto package = addPackage(path)) {
+        auto command = package->createCommandChain();
+        command->add(package->createLoadCommand(), true);
+        command->run();
+    }
+}
+
+void MainWindow::openExternalFile()
+{
+    const QStringList paths = Dialogs::getOpenFileFilenames(this);
+    for (const QString &path : paths) {
+        openFile(path);
+    }
+}
+
+
+
 void MainWindow::processArguments(const QStringList &arguments)
 {
     QCommandLineParser cli;
@@ -261,6 +289,51 @@ void MainWindow::initWidgets()
     projectsLayout->setMargin(0);
     projectsLayout->setSpacing(1);
 
+    auto dockResources = new QDockWidget(tr("Resources"), this);
+    dockResources->setObjectName("dockResources");
+    dockResources->setWidget(dockResourceWidget);
+    addDockWidget(Qt::LeftDockWidgetArea, dockResources);
+
+    auto dockFileSystem = new QDockWidget(tr("File System"), this);
+    dockFileSystem->setObjectName("dockFileSystem");
+    dockFileSystem->setWidget(dockFilesystemWidget);
+    addDockWidget(Qt::LeftDockWidgetArea, dockFileSystem);
+
+    auto dockIcons = new QDockWidget(tr("Icons"), this);
+    dockIcons->setObjectName("dockIcons");
+    dockIcons->setWidget(dockIconsWidget);
+    addDockWidget(Qt::LeftDockWidgetArea, dockIcons);
+
+    auto dockManifest = new QDockWidget(tr("Manifest"), this);
+    dockManifest->setObjectName("dockManifest");
+    dockManifest->setWidget(dockManifestWidget);
+    addDockWidget(Qt::LeftDockWidgetArea, dockManifest);
+
+    auto dockProjects = new QDockWidget(tr("Projects"), this);
+    dockProjects->setObjectName("dockProjects");
+    dockProjects->setWidget(dockProjectsWidget);
+    addDockWidget(Qt::LeftDockWidgetArea, dockProjects);
+
+    tabifyDockWidget(dockResources, dockFileSystem);
+    tabifyDockWidget(dockFileSystem, dockIcons);
+    tabifyDockWidget(dockIcons, dockManifest);
+    tabifyDockWidget(dockManifest, dockProjects);
+    dockResources->raise();
+
+    auto viewMenu = menuBar()->addMenu(tr("&View"));
+    viewMenu->addAction(dockResources->toggleViewAction());
+    viewMenu->addAction(dockFileSystem->toggleViewAction());
+    viewMenu->addAction(dockIcons->toggleViewAction());
+    viewMenu->addAction(dockManifest->toggleViewAction());
+    viewMenu->addAction(dockProjects->toggleViewAction());
+    viewMenu->addSeparator();
+    viewMenu->addAction(tr("Toggle Full Screen"), this, &MainWindow::toggleFullScreen, QKeySequence("Ctrl+F11"));
+
+    auto helpMenu = menuBar()->addMenu(tr("&Help"));
+    helpMenu->addAction(tr("About"), this, &MainWindow::about);
+    helpMenu->addAction(tr("About Qt"), qApp, &QApplication::aboutQt);
+}
+
     dockProjects = new QDockWidget(this);
     dockResources = new QDockWidget(this);
     dockFilesystem = new QDockWidget(this);
@@ -290,6 +363,34 @@ void MainWindow::initWidgets()
 
     restoreGeometry(app->settings->getMainWindowGeometry());
     restoreState(app->settings->getMainWindowState());
+
+    connect(app->settings, &Settings::themeChanged, this, &MainWindow::onThemeChanged);
+    connect(app->settings, &Settings::languageChanged, this, &MainWindow::onLanguageChanged);
+    connect(app->settings, &Settings::iconPackChanged, this, &MainWindow::onIconPackChanged);
+    connect(app->settings, &Settings::fontSizeChanged, this, &MainWindow::onFontSizeChanged);
+    connect(app->settings, &Settings::iconSizeChanged, this, &MainWindow::onIconSizeChanged);
+    connect(app->settings, &Settings::resourceViewChanged, this, &MainWindow::onResourceViewChanged);
+    connect(app->settings, &Settings::filesystemViewChanged, this, &MainWindow::onFilesystemViewChanged);
+    connect(app->settings, &Settings::manifestViewChanged, this, &MainWindow::onManifestViewChanged);
+    connect(app->settings, &Settings::iconViewChanged, this, &MainWindow::onIconViewChanged);
+    connect(app->settings, &Settings::projectViewChanged, this, &MainWindow::onProjectViewChanged);
+    connect(app->settings, &Settings::fileViewChanged, this, &MainWindow::onFileViewChanged);
+    connect(app->settings, &Settings::iconViewChanged, this, &MainWindow::onIconViewChanged);
+    connect(app->settings, &Settings::iconViewChanged, this, &MainWindow::onIconViewChanged);
+    connect(app->settings, &Settings::iconViewChanged, this, &MainWindow::onIconViewChanged);
+    connect(app->settings, &Settings::iconViewChanged, this, &MainWindow::onIconViewChanged);
+    connect(app->settings, &Settings::iconViewChanged, this, &MainWindow::onIconViewChanged);
+
+    connect(&packages, &PackageModel::rowsInserted, this, &MainWindow::onPackageAdded);
+    connect(&packages, &PackageModel::rowsRemoved, this, &MainWindow::onPackageRemoved);
+    connect(&packages, &PackageModel::dataChanged, this, &MainWindow::onPackageChanged);
+    connect(&packages, &PackageModel::modelReset, this, &MainWindow::onPackageModelReset);
+    connect(&packages, &PackageModel::rowsMoved, this, &MainWindow::onPackageMoved);
+
+    connect(packageList, &PackageList::currentPackageChanged, this, &MainWindow::onPackageSwitched);
+    connect(packageList->selectionModel(), &QItemSelectionModel::currentChanged, this, &MainWindow::onPackageSwitched);
+    connect(packageList, &PackageList::addPackageRequested, this, &MainWindow::onAddPackageRequested);
+    connect(packageList, &PackageList::removePackageRequested, this, &MainWindow::onRemovePackageRequested
 }
 
 void MainWindow::initMenus()
@@ -485,6 +586,64 @@ void MainWindow::retranslate()
     menuWindow->addSeparator();
     menuWindow->addActions(createPopupMenu()->actions());
 
+    // Tool Bar:
+
+    toolbar->retranslate();
+
+    // Status Bar:
+
+    statusBar()->clearMessage();
+    statusBar()->showMessage(tr("Ready"));
+
+    // Actions:
+
+    actionOpenApk->setText(tr("Open APK"));
+    actionOpenApk->setToolTip(tr("Open APK"));
+    actionOpenApk->setStatusTip(tr("Open APK"));
+    actionOpenApk->setIconText(tr("Open APK"));
+
+    actionSaveApk->setText(tr("Save APK"));
+    actionSaveApk->setToolTip(tr("Save APK"));
+    actionSaveApk->setStatusTip(tr("Save APK"));
+    actionSaveApk->setIconText(tr("Save APK"));
+
+    actionInstallApk->setText(tr("Install APK"));
+    actionInstallApk->setToolTip(tr("Install APK"));
+    actionInstallApk->setStatusTip(tr("Install APK"));
+    actionInstallApk->setIconText(tr("Install APK"));
+
+    actionInstallExternal->setText(tr("Install External APK"));
+    actionInstallExternal->setToolTip(tr("Install External APK"));
+    actionInstallExternal->setStatusTip(tr("Install External APK"));
+    actionInstallExternal->setIconText(tr("Install External APK"));
+
+    actionOptimizeExternal->setText(tr("Optimize External APK"));
+    actionOptimizeExternal->setToolTip(tr("Optimize External APK"));
+    actionOptimizeExternal->setStatusTip(tr("Optimize External APK"));
+    actionOptimizeExternal->setIconText(tr("Optimize External APK"));
+
+    actionSignExternal->setText(tr("Sign External APK"));
+    actionSignExternal->setToolTip(tr("Sign External APK"));
+    actionSignExternal->setStatusTip(tr("Sign External APK"));
+    actionSignExternal->setIconText(tr("Sign External APK"));
+
+    actionExploreApk->setText(tr("Explore APK"));
+    actionExploreApk->setToolTip(tr("Explore APK"));
+    actionExploreApk->setStatusTip(tr("Explore APK"));
+    actionExploreApk->setIconText(tr("Explore APK"));
+
+    actionCloseApk->setText(tr("Close APK"));
+    actionCloseApk->setToolTip(tr("Close APK"));
+    actionCloseApk->setStatusTip(tr("Close APK"));
+    actionCloseApk->setIconText(tr("Close APK"));
+
+    actionProjectPage->setText(tr("Project Page"));
+    actionProjectPage->setToolTip(tr("Project Page"));
+    actionProjectPage->setStatusTip(tr("Project Page"));
+    actionProjectPage->setIconText(tr("Project Page"));
+
+    actionTitleEditor->setText
+
     // Help Menu:
 
     //: Don't translate the "APK Editor Studio" part.
@@ -599,6 +758,25 @@ void MainWindow::dropEvent(QDropEvent *event)
     }
     rubberBand->hide();
 }
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (packages.closeAll()) {
+        event->accept();
+    } else {
+        event->ignore();
+    }
+}
+
+void MainWindow::on_actionOpen_triggered()
+{
+    const QString path = QFileDialog::getOpenFileName(this, tr("Open APK"), QString(), tr("APK Files (*.apk)"));
+    if (!path.isEmpty()) {
+        openApk(path);
+    }
+
+}
+
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
